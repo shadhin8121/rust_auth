@@ -1,1 +1,2 @@
-pub mod user_auth_controller;
+pub mod register_user_auth_controller;
+pub mod login_user_auth_controller;

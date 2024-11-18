@@ -1,6 +1,11 @@
-use crate::controller::user_auth_controller::user_auth;
-use axum::routing::get;
+use crate::controller::login_user_auth_controller::login_user;
+use crate::controller::register_user_auth_controller::register_user;
+
+use axum::routing::post;
 use axum::Router;
+
 pub fn user_auth_fn() -> Router {
-    axum::Router::new().route("/user_auth", get(user_auth))
+    axum::Router::new()
+        .route("/register", post(register_user))
+        .route("/login", post(login_user))
 }
