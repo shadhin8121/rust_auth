@@ -29,7 +29,19 @@ pub async fn register_user(
 ) -> Result<impl IntoResponse, impl IntoResponse> {
     let id = Uuid::new_v4();
 
-    println!("{:?}", &body);
+    let user_exists = sqlx::query_as::<_, ReturnedResult>("select * from users where email=$1")
+        .bind(&body.email)
+        .fetch_optional(&pool)
+        .await;
+
+    if let Ok(Some(_)) = user_exists {
+        return Ok((
+            StatusCode::CONFLICT,
+            Json(Message {
+                message: "user already exists".to_string(),
+            }),
+        ));
+    }
 
     // Handle password hashing error
     let hashed_password = match bcrypt::hash(&body.password, bcrypt::DEFAULT_COST) {

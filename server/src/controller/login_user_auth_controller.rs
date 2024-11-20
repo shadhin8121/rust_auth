@@ -1,11 +1,14 @@
+use axum::extract::FromRef;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use bcrypt::verify;
+use jsonwebtoken::{decode, encode, EncodingKey, Header};
 use serde::Deserialize;
 use serde::Serialize;
 use sqlx::prelude::FromRow;
 use sqlx::PgPool;
+use std::env;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -27,6 +30,14 @@ struct Message {
     message: String,
 }
 
+//claims for jwt
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    id: Uuid,
+    email: String,
+    username: String,
+}
+
 pub async fn login_user(
     Extension(pool): Extension<PgPool>,
     Json(body): Json<UserCred>,
@@ -42,12 +53,35 @@ pub async fn login_user(
         Ok(user_data) => {
             // comparing hashed_password
             match verify(&body.password, &user_data.password) {
-                Ok(true) => Ok((
-                    StatusCode::ACCEPTED,
-                    Json(Message {
-                        message: "User Logged In successfully".to_string(),
-                    }),
-                )), // Password matched
+                Ok(true) => {
+                    //claims for jsonwebtoken
+                    let claims = Claims {
+                        username: user_data.username,
+                        email: user_data.email,
+                        id: user_data.id,
+                    };
+
+                    //secret key
+                    let secret_key =
+                        env::var("JWT_SECRET").expect("Kindly Define JWT_SECRET variable first");
+
+                    //creating a jwt token
+                    let token = encode(
+                        &Header::default(),
+                        &claims,
+                        &EncodingKey::from_secret(secret_key.as_ref()),
+                    )
+                    .unwrap();
+
+                    println!("{}", token);
+
+                    Ok((
+                        StatusCode::ACCEPTED,
+                        Json(Message {
+                            message: "User Logged In successfully".to_string(),
+                        }),
+                    ))
+                } // Password matched
                 Ok(false) => Err(((
                     StatusCode::UNAUTHORIZED,
                     Json(Message {
