@@ -1,9 +1,9 @@
-use axum::extract::FromRef;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::http::{header::SET_COOKIE, StatusCode};
+use axum::response::{AppendHeaders, IntoResponse};
 use axum::{Extension, Json};
 use bcrypt::verify;
-use jsonwebtoken::{decode, encode, EncodingKey, Header};
+use chrono::{Duration, Utc};
+use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Deserialize;
 use serde::Serialize;
 use sqlx::prelude::FromRow;
@@ -36,6 +36,7 @@ struct Claims {
     id: Uuid,
     email: String,
     username: String,
+    exp: usize,
 }
 
 pub async fn login_user(
@@ -54,11 +55,16 @@ pub async fn login_user(
             // comparing hashed_password
             match verify(&body.password, &user_data.password) {
                 Ok(true) => {
+                    //time for jwt expire
+                    let now = Utc::now();
+                    let expiration = now + Duration::hours(1);
+
                     //claims for jsonwebtoken
                     let claims = Claims {
                         username: user_data.username,
                         email: user_data.email,
                         id: user_data.id,
+                        exp: expiration.timestamp() as usize,
                     };
 
                     //secret key
@@ -73,14 +79,20 @@ pub async fn login_user(
                     )
                     .unwrap();
 
-                    println!("{}", token);
+                    let cookie = format!(
+                        "token={}; HttpOnly; Path=/; Max-Age=3600; SameSite=Lax",
+                        token
+                    );
 
-                    Ok((
+                    let response = (
                         StatusCode::ACCEPTED,
+                        AppendHeaders([(SET_COOKIE, cookie)]),
                         Json(Message {
                             message: "User Logged In successfully".to_string(),
                         }),
-                    ))
+                    );
+
+                    Ok(response)
                 } // Password matched
                 Ok(false) => Err(((
                     StatusCode::UNAUTHORIZED,
